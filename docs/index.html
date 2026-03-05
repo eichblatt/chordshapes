@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Chord Shapes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    input, select, button { font-size: 16px; padding: 6px 8px; }
+    pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow: auto; }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Chord Shapes</h1>
+
+  <div class="row">
+    <label>Chord: <input id="chord" value="Cm" /></label>
+    <label>Tuning: <input id="tuning" value="EADGBE" /></label>
+    <label>Max fret: <input id="maxFret" type="number" value="12" /></label>
+    <label>Max results: <input id="maxResults" type="number" value="12" /></label>
+    <button id="go">Generate</button>
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="output"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
