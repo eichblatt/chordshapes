@@ -34,7 +34,9 @@ def parse_tuning(tuning: str):
 
 def frets_for_pitch(string_pc: int, chord_pcs, max_fret: int):
     frets = []
-    for fret in range(0, max_fret + 1):
+    if string_pc in chord_pcs:
+        frets.append(0)
+    for fret in range(1, max_fret + 1):
         if (string_pc + fret) % 12 in chord_pcs:
             frets.append(fret)
     return frets
@@ -110,6 +112,27 @@ def generate_fingerings(
                 if tuple(candidate) in frets_set:
                     drop = True
                     break
+        if not drop:
+            filtered.append(f)
+
+    fingerings = filtered
+
+    # Drop muted strings when a fretted chord tone is available within the diagram window.
+    filtered = []
+    for f in fingerings:
+        frets = f["frets"]
+        base_fret = f["base_fret"]
+        max_allowed = base_fret + max_span - 1
+        drop = False
+        for idx, fret in enumerate(frets):
+            if fret is None:
+                string_pc = tuning_pcs[idx]
+                for candidate in range(base_fret, max_allowed + 1):
+                    if (string_pc + candidate) % 12 in chord_pcs:
+                        drop = True
+                        break
+            if drop:
+                break
         if not drop:
             filtered.append(f)
 

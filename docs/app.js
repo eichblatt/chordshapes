@@ -59,7 +59,8 @@ function parseTuning(tuning) {
 }
 
 function fretsForPitch(stringPc, chordPcs, maxFret) {
-  const frets = [0];
+  const frets = [];
+  if (chordPcs.includes(stringPc)) frets.push(0);
   for (let fret = 1; fret <= maxFret; fret++) {
     const pc = (stringPc + fret) % 12;
     if (chordPcs.includes(pc)) frets.push(fret);
@@ -146,6 +147,23 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
     return true;
   });
 
+  const filtered2 = filtered.filter(f => {
+    const frets = f.frets;
+    const baseFret = f.baseFret;
+    const maxAllowed = baseFret + 3;
+    for (let i = 0; i < frets.length; i++) {
+      if (frets[i] == null) {
+        const stringPc = tuningPcs[i];
+        for (let fret = baseFret; fret <= maxAllowed; fret++) {
+          if (chordPcs.includes((stringPc + fret) % 12)) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  });
+
   function score(f) {
     const frets = f.frets;
     const played = frets.map((fr, i) => (fr == null ? null : i)).filter(i => i != null);
@@ -179,7 +197,7 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
     return [baseFret, internalMutes * 100, mutes, fingers, rootLowest ? 0 : 1, fretSum];
   }
 
-  filtered.sort((a, b) => {
+  filtered2.sort((a, b) => {
     const sa = score(a), sb = score(b);
     for (let i = 0; i < sa.length; i++) {
       if (sa[i] !== sb[i]) return sa[i] - sb[i];
@@ -187,7 +205,7 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
     return 0;
   });
 
-  return filtered.slice(0, maxResults);
+  return filtered2.slice(0, maxResults);
 }
 
 function drawPng(title, tuningNotes, fingering, rootPc) {
@@ -325,7 +343,7 @@ document.getElementById("go").addEventListener("click", () => {
   const chord = document.getElementById("chord").value.trim();
   const tuning = document.getElementById("tuning").value.trim();
   const maxFret = parseInt(document.getElementById("maxFret").value, 10);
-  const maxResults = parseInt(document.getElementById("maxResults").value, 10);
+  const maxResults = 100;
 
   const error = document.getElementById("error");
   const output = document.getElementById("output");
@@ -353,5 +371,12 @@ document.getElementById("go").addEventListener("click", () => {
     });
   } catch (e) {
     error.textContent = e.message;
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    document.getElementById("go").click();
   }
 });
