@@ -184,34 +184,89 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
   return filtered.slice(0, maxResults);
 }
 
-function drawAscii(title, tuningNotes, fingering, rootPc) {
+function drawPng(title, tuningNotes, fingering, rootPc) {
   const frets = fingering.frets;
   const baseFret = fingering.baseFret;
+  const strings = frets.length;
 
-  const lines = [title];
-  const labels = frets.map((f, i) => {
-    if (f == null) return "X";
-    if (f === 0) return "0";
-    return tuningNotes[i];
+  const width = 360;
+  const height = 520;
+  const marginX = 40;
+  const marginTop = 70;
+  const gridWidth = width - marginX * 2;
+  const gridHeight = 320;
+  const stringGap = gridWidth / (strings - 1);
+  const fretGap = gridHeight / 4;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#111";
+  ctx.font = "18px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(title, width / 2, 28);
+
+  // String labels
+  ctx.font = "12px system-ui, sans-serif";
+  tuningNotes.forEach((note, i) => {
+    const x = marginX + i * stringGap;
+    ctx.fillText(note, x, 50);
   });
-  let labelLine = "   " + labels.join(" ");
-  if (baseFret > 1) labelLine += `  Base fret: ${baseFret}`;
-  lines.push(labelLine);
 
-  for (let row = 0; row < 4; row++) {
-    const fretNum = baseFret + row;
-    const rowCells = frets.map((f, i) => {
-      if (f != null && f === fretNum) {
-        const notePc = (NOTE_TO_PC[tuningNotes[i]] + f) % 12;
-        return notePc === rootPc ? "R" : "●";
-      }
-      return "-";
-    });
-    if (baseFret === 1) lines.push("   " + rowCells.join(" "));
-    else lines.push(String(fretNum).padStart(2) + " " + rowCells.join(" "));
+  // Grid: strings (vertical)
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < strings; i++) {
+    const x = marginX + i * stringGap;
+    ctx.beginPath();
+    ctx.moveTo(x, marginTop);
+    ctx.lineTo(x, marginTop + gridHeight);
+    ctx.stroke();
   }
 
-  return lines.join("\n");
+  // Grid: frets (horizontal)
+  for (let i = 0; i <= 4; i++) {
+    const y = marginTop + i * fretGap;
+    ctx.beginPath();
+    ctx.moveTo(marginX, y);
+    ctx.lineTo(marginX + gridWidth, y);
+    ctx.stroke();
+  }
+
+  // Base fret label
+  if (baseFret > 1) {
+    ctx.fillText(`Base fret: ${baseFret}`, width - 90, marginTop - 10);
+  }
+
+  // X/O markers
+  frets.forEach((fret, i) => {
+    const x = marginX + i * stringGap;
+    if (fret == null) {
+      ctx.fillText("X", x, marginTop - 14);
+    } else if (fret === 0) {
+      ctx.fillText("0", x, marginTop - 14);
+    }
+  });
+
+  // Dots
+  frets.forEach((fret, i) => {
+    if (fret == null || fret === 0) return;
+    if (fret < baseFret || fret > baseFret + 3) return;
+    const x = marginX + i * stringGap;
+    const y = marginTop + (fret - baseFret + 0.5) * fretGap;
+    const notePc = (NOTE_TO_PC[tuningNotes[i]] + fret) % 12;
+    ctx.fillStyle = notePc === rootPc ? "#d62828" : "#111";
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  return canvas.toDataURL("image/png");
 }
 
 document.getElementById("go").addEventListener("click", () => {
@@ -237,9 +292,12 @@ document.getElementById("go").addEventListener("click", () => {
     }
 
     fingerings.forEach((f, idx) => {
-      const pre = document.createElement("pre");
-      pre.textContent = drawAscii(`${chord} (shape ${idx + 1})`, notes, f, rootPc);
-      output.appendChild(pre);
+      const img = document.createElement("img");
+      img.alt = `${chord} (shape ${idx + 1})`;
+      img.src = drawPng(`${chord} (shape ${idx + 1})`, notes, f, rootPc);
+      img.style.display = "block";
+      img.style.marginBottom = "12px";
+      output.appendChild(img);
     });
   } catch (e) {
     error.textContent = e.message;
