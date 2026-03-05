@@ -9,6 +9,17 @@
     .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
     input, select, button { font-size: 16px; padding: 6px 8px; }
     pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow: auto; }
+    #output {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 30px;
+      align-items: start;
+    }
+    #output img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
     .error { color: #b00020; }
   </style>
 </head>

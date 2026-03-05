@@ -12,6 +12,12 @@ const CHORD_QUALITIES = {
   "7": [0, 4, 7, 10],
   "maj7": [0, 4, 7, 11],
   "m7": [0, 3, 7, 10],
+  "9": [0, 4, 7, 10, 2],
+  "maj9": [0, 4, 7, 11, 2],
+  "m9": [0, 3, 7, 10, 2],
+  "13": [0, 4, 7, 10, 2, 5, 9],
+  "maj13": [0, 4, 7, 11, 2, 5, 9],
+  "m13": [0, 3, 7, 10, 2, 5, 9],
   "mMaj7": [0, 3, 7, 11],
   "sus2": [0, 2, 7],
   "sus4": [0, 5, 7]
@@ -189,34 +195,46 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
   const baseFret = fingering.baseFret;
   const strings = frets.length;
 
-  const width = 360;
-  const height = 520;
-  const marginX = 40;
-  const marginTop = 70;
+  const scale = 0.3;
+  const width = Math.round(360 * scale);
+  const height = Math.round(560 * scale);
+  const marginX = Math.round(40 * scale);
+  const marginTop = Math.round(70 * scale);
+  const titlePadding = Math.round(height * 0.18);
+  const bottomPadding = Math.round(height * 0.08);
   const gridWidth = width - marginX * 2;
-  const gridHeight = 320;
+  const gridHeight = Math.round(320 * scale);
   const stringGap = gridWidth / (strings - 1);
   const fretGap = gridHeight / 4;
 
+  const renderScale = 3;
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = width * renderScale;
+  canvas.height = height * renderScale;
   const ctx = canvas.getContext("2d");
+  ctx.scale(renderScale, renderScale);
+
+  const dotRadius = 8;
+  const wedgeAngle = (30 * Math.PI) / 180;
+
+  function drawWedge(x, y, centerAngle) {
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, dotRadius + 1, centerAngle - wedgeAngle / 2, centerAngle + wedgeAngle / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = "#111";
-  ctx.font = "18px system-ui, sans-serif";
+  ctx.font = "bold 12px system-ui, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(title, width / 2, 28);
-
-  // String labels
-  ctx.font = "12px system-ui, sans-serif";
-  tuningNotes.forEach((note, i) => {
-    const x = marginX + i * stringGap;
-    ctx.fillText(note, x, 50);
-  });
+  ctx.fillText(title, width / 2, titlePadding);
 
   // Grid: strings (vertical)
   ctx.strokeStyle = "#111";
@@ -224,14 +242,14 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
   for (let i = 0; i < strings; i++) {
     const x = marginX + i * stringGap;
     ctx.beginPath();
-    ctx.moveTo(x, marginTop);
-    ctx.lineTo(x, marginTop + gridHeight);
+    ctx.moveTo(x, marginTop + titlePadding);
+    ctx.lineTo(x, marginTop + titlePadding + gridHeight);
     ctx.stroke();
   }
 
   // Grid: frets (horizontal)
   for (let i = 0; i <= 4; i++) {
-    const y = marginTop + i * fretGap;
+    const y = marginTop + titlePadding + i * fretGap;
     ctx.beginPath();
     ctx.moveTo(marginX, y);
     ctx.lineTo(marginX + gridWidth, y);
@@ -240,16 +258,36 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
 
   // Base fret label
   if (baseFret > 1) {
-    ctx.fillText(`Base fret: ${baseFret}`, width - 90, marginTop - 10);
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.fillText(`${baseFret}`, marginX - 12, marginTop + titlePadding + 8);
+    ctx.restore();
   }
 
   // X/O markers
   frets.forEach((fret, i) => {
     const x = marginX + i * stringGap;
     if (fret == null) {
-      ctx.fillText("X", x, marginTop - 14);
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 1.5;
+      const size = 4;
+      const y = marginTop + titlePadding - 10;
+      ctx.beginPath();
+      ctx.moveTo(x - size, y - size);
+      ctx.lineTo(x + size, y + size);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - size, y + size);
+      ctx.lineTo(x + size, y - size);
+      ctx.stroke();
     } else if (fret === 0) {
-      ctx.fillText("0", x, marginTop - 14);
+      const notePc = (NOTE_TO_PC[tuningNotes[i]] + fret) % 12;
+      ctx.strokeStyle = notePc === rootPc ? "#d62828" : "#111";
+      ctx.lineWidth = 1.5;
+      const y = marginTop + titlePadding - 10;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.stroke();
     }
   });
 
@@ -258,12 +296,26 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
     if (fret == null || fret === 0) return;
     if (fret < baseFret || fret > baseFret + 3) return;
     const x = marginX + i * stringGap;
-    const y = marginTop + (fret - baseFret + 0.5) * fretGap;
+    const y = marginTop + titlePadding + (fret - baseFret + 0.5) * fretGap;
     const notePc = (NOTE_TO_PC[tuningNotes[i]] + fret) % 12;
-    ctx.fillStyle = notePc === rootPc ? "#d62828" : "#111";
+    const isRoot = notePc === rootPc;
+    ctx.fillStyle = isRoot ? "#d62828" : "#111";
     ctx.beginPath();
-    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
     ctx.fill();
+    if (!isRoot) {
+      const interval = (notePc - rootPc + 12) % 12;
+      const centerAngle = -Math.PI / 2 + interval * wedgeAngle;
+      drawWedge(x, y, centerAngle);
+    }
+  });
+
+  // String labels (bottom)
+  ctx.fillStyle = "#111";
+  ctx.font = "12px system-ui, sans-serif";
+  tuningNotes.forEach((note, i) => {
+    const x = marginX + i * stringGap;
+    ctx.fillText(note, x, marginTop + titlePadding + gridHeight + bottomPadding);
   });
 
   return canvas.toDataURL("image/png");
@@ -293,8 +345,8 @@ document.getElementById("go").addEventListener("click", () => {
 
     fingerings.forEach((f, idx) => {
       const img = document.createElement("img");
-      img.alt = `${chord} (shape ${idx + 1})`;
-      img.src = drawPng(`${chord} (shape ${idx + 1})`, notes, f, rootPc);
+      img.alt = `${chord}`;
+      img.src = drawPng(`${chord}`, notes, f, rootPc);
       img.style.display = "block";
       img.style.marginBottom = "12px";
       output.appendChild(img);
