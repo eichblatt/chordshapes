@@ -16,7 +16,6 @@ const CHORD_QUALITIES = {
   "maj9": [0, 4, 7, 11, 2],
   "m9": [0, 3, 7, 10, 2],
   "13": [0, 4, 7, 10, 2, 5, 9],
-  "maj13": [0, 4, 7, 11, 2, 5, 9],
   "m13": [0, 3, 7, 10, 2, 5, 9],
   "mMaj7": [0, 3, 7, 11],
   "sus2": [0, 2, 7],
@@ -57,7 +56,6 @@ function intervalLabels(intervals) {
 
 function suggestQualities(quality) {
   const fallbackMap = {
-    maj13: ["maj9", "maj7", ""],
     13: ["9", "7", ""],
     m13: ["m9", "m7", "m"],
     maj9: ["maj7", ""],
