@@ -37,6 +37,24 @@ function chordPitches(rootPc, intervals) {
   return intervals.map(i => (rootPc + i) % 12);
 }
 
+function intervalLabels(intervals) {
+  const map = {
+    0: "1",
+    1: "b2",
+    2: "2",
+    3: "b3",
+    4: "3",
+    5: "4",
+    6: "b5",
+    7: "5",
+    8: "#5",
+    9: "6",
+    10: "b7",
+    11: "7",
+  };
+  return intervals.map(i => map[i % 12] || String(i));
+}
+
 function parseTuning(tuning) {
   const t = tuning.replace(/\s+/g, "");
   if (!t) throw new Error("Tuning is required");
@@ -346,12 +364,16 @@ document.getElementById("go").addEventListener("click", () => {
   const maxResults = 100;
 
   const error = document.getElementById("error");
+  const chordInfo = document.getElementById("chordInfo");
   const output = document.getElementById("output");
   error.textContent = "";
+  chordInfo.textContent = "";
   output.innerHTML = "";
 
   try {
     const { rootPc, intervals } = parseChord(chord);
+    const labels = intervalLabels(intervals);
+    chordInfo.textContent = `${chord} contains intervals: ${labels.join(", ")}`;
     const chordPcs = chordPitches(rootPc, intervals);
     const { notes, pcs } = parseTuning(tuning);
     const fingerings = generateFingerings(pcs, chordPcs, rootPc, maxFret, maxResults);
