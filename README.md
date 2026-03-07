@@ -4,8 +4,6 @@ Generate guitar (and 4‑string) chord diagrams from chord names and tunings. In
 
 ## Web App (recommended)
 
-If this repo is published with GitHub Pages, open the site here:
-
 - https://eichblatt.github.io/chordshapes/
 
 

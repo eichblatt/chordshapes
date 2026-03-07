@@ -30,7 +30,7 @@ function parseChord(chord) {
   const quality = match[3] || "";
   if (!(root in NOTE_TO_PC)) throw new Error("Invalid root note");
   if (!(quality in CHORD_QUALITIES)) throw new Error(`Unsupported quality: ${quality}`);
-  return { root, rootPc: NOTE_TO_PC[root], intervals: CHORD_QUALITIES[quality] };
+  return { root, rootPc: NOTE_TO_PC[root], intervals: CHORD_QUALITIES[quality], quality };
 }
 
 function chordPitches(rootPc, intervals) {
@@ -53,6 +53,26 @@ function intervalLabels(intervals) {
     11: "7",
   };
   return intervals.map(i => map[i % 12] || String(i));
+}
+
+function suggestQualities(quality) {
+  const fallbackMap = {
+    maj13: ["maj9", "maj7", ""],
+    13: ["9", "7", ""],
+    m13: ["m9", "m7", "m"],
+    maj9: ["maj7", ""],
+    9: ["7", ""],
+    m9: ["m7", "m"],
+    maj7: [""],
+    7: [""],
+    m7: ["m"],
+    mMaj7: ["m"],
+    dim: ["m"],
+    aug: [""],
+    sus2: [""],
+    sus4: [""],
+  };
+  return fallbackMap[quality] || [];
 }
 
 function parseTuning(tuning) {
@@ -321,8 +341,20 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
       ctx.strokeStyle = notePc === rootPc ? "#d62828" : "#111";
       ctx.lineWidth = 1.5;
       const y = marginTop + titlePadding - 10;
+      const radius = 4;
+      const interval = (notePc - rootPc + 12) % 12;
+      const centerAngle = -Math.PI / 2 + interval * wedgeAngle;
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      const tickLength = radius * 0.5;
+      const x1 = x + Math.cos(centerAngle) * (radius - tickLength);
+      const y1 = y + Math.sin(centerAngle) * (radius - tickLength);
+      const x2 = x + Math.cos(centerAngle) * radius;
+      const y2 = y + Math.sin(centerAngle) * radius;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
       ctx.stroke();
     }
   });
@@ -371,7 +403,7 @@ document.getElementById("go").addEventListener("click", () => {
   output.innerHTML = "";
 
   try {
-    const { rootPc, intervals } = parseChord(chord);
+    const { root, rootPc, intervals, quality } = parseChord(chord);
     const labels = intervalLabels(intervals);
     chordInfo.textContent = `${chord} contains intervals: ${labels.join(", ")}`;
     const chordPcs = chordPitches(rootPc, intervals);
@@ -379,7 +411,17 @@ document.getElementById("go").addEventListener("click", () => {
     const fingerings = generateFingerings(pcs, chordPcs, rootPc, maxFret, maxResults);
 
     if (!fingerings.length) {
-      output.textContent = "No chord fingerings found.";
+      const fallbacks = suggestQualities(quality);
+      for (const altQuality of fallbacks) {
+        const altIntervals = CHORD_QUALITIES[altQuality];
+        const altPcs = chordPitches(rootPc, altIntervals);
+        const altFingerings = generateFingerings(pcs, altPcs, rootPc, maxFret, maxResults);
+        if (altFingerings.length) {
+          output.textContent = `No fingerings found for ${chord}. Showing nearest alternative ${root}${altQuality} (${intervalLabels(altIntervals).join(", ")}).`;
+          return;
+        }
+      }
+      output.textContent = `No fingerings found for ${chord}.`;
       return;
     }
 
