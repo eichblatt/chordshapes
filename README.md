@@ -8,7 +8,6 @@ If this repo is published with GitHub Pages, open the site here:
 
 - https://eichblatt.github.io/chordshapes/
 
-> If you don’t know the URL, go to **Settings → Pages** in GitHub to see it.
 
 ## Run locally (browser)
 
