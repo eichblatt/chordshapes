@@ -34,3 +34,14 @@ python chordshapes.py Cm --image cm.png
 
 - Default tuning is standard EADGBE.
 - 4‑string tunings are supported (e.g. DGBE).
+
+1. mute_count_penalty (1 if ≥3 mutes else 0)
+2. both_ends_muted_penalty (1 if both outer strings muted)
+3. internal_mutes * 1000
+4. effective_fingers * 10
+5. root_lowest penalty (0 if root is lowest, else 12)
+6. inversion_score
+7. base_fret * 10
+8. effective_mutes * 41 
+9. span_score = fret_span + string_span
+10. min_fret (minimum non‑zero fret)

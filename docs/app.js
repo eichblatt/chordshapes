@@ -109,30 +109,30 @@ function estimateFingers(frets, minFret, maxFret) {
   if (minFret == null) return 0;
   const fretted = frets.map((f, i) => (f !== null && f !== 0 ? i : null)).filter(i => i != null);
   if (!fretted.length) return 0;
-
-  const assigned = new Set();
-  let fingers = 0;
+  const baseFingers = fretted.length;
+  let best = baseFingers;
 
   const minGroup = fretted.filter(i => frets[i] === minFret);
-  if (minGroup.length) {
-    fingers++;
-    minGroup.forEach(i => assigned.add(i));
+  if (minGroup.length > 1) {
+    if (!frets.some(f => f === null || f === 0 || (f !== null && f < minFret))) {
+      best = Math.min(best, 1 + (baseFingers - minGroup.length));
+    }
   }
 
   if (maxFret != null && maxFret !== minFret) {
-    const maxGroup = fretted.filter(i => frets[i] === maxFret && !assigned.has(i)).sort((a, b) => a - b);
-    if (maxGroup.length) {
+    const maxGroup = fretted.filter(i => frets[i] === maxFret).sort((a, b) => a - b);
+    if (maxGroup.length > 1) {
       const contiguous = maxGroup.every((v, idx) => idx === 0 || v === maxGroup[idx - 1] + 1);
       const includesHighest = maxGroup[maxGroup.length - 1] === frets.length - 1;
       if (contiguous && includesHighest) {
-        fingers++;
-        maxGroup.forEach(i => assigned.add(i));
+        if (!frets.some(f => f === null || f === 0 || (f !== null && f < maxFret))) {
+          best = Math.min(best, 1 + (baseFingers - maxGroup.length));
+        }
       }
     }
   }
 
-  fretted.forEach(i => { if (!assigned.has(i)) fingers++; });
-  return fingers;
+  return best;
 }
 
 function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
@@ -158,7 +158,7 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
       if (combo.some(f => f !== null && f > 0 && (f < baseFret || f > maxAllowed))) return;
 
       const fingersUsed = estimateFingers(combo, fretted.length ? minFret : null, fretted.length ? maxFretUsed : null);
-      if (fingersUsed > 4) return;
+      if (fingersUsed == null || fingersUsed > 4) return;
 
       fingerings.push({ frets: combo, baseFret });
       return;
@@ -173,11 +173,13 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
 
   const set = new Set(fingerings.map(f => JSON.stringify(f.frets)));
   const filtered = fingerings.filter(f => {
+    const playedIndices = f.frets.map((fr, i) => (fr == null ? null : i)).filter(i => i != null);
+    const lowestPlayed = playedIndices.length ? Math.min(...playedIndices) : null;
     for (let i = 0; i < f.frets.length; i++) {
       if (f.frets[i] === null) {
         const candidate = [...f.frets];
         candidate[i] = 0;
-        if (set.has(JSON.stringify(candidate))) return false;
+        if (set.has(JSON.stringify(candidate)) && (lowestPlayed == null || i > lowestPlayed)) return false;
       }
     }
     return true;
@@ -187,8 +189,19 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
     const frets = f.frets;
     const baseFret = f.baseFret;
     const maxAllowed = baseFret + 3;
+    let leadingMuted = 0;
     for (let i = 0; i < frets.length; i++) {
-      if (frets[i] == null) {
+      if (frets[i] == null) leadingMuted += 1;
+      else break;
+    }
+    let trailingMuted = 0;
+    for (let i = frets.length - 1; i >= 0; i--) {
+      if (frets[i] == null) trailingMuted += 1;
+      else break;
+    }
+
+    for (let i = 0; i < frets.length; i++) {
+      if (frets[i] == null && !(i < leadingMuted || i >= frets.length - trailingMuted)) {
         const stringPc = tuningPcs[i];
         for (let fret = baseFret; fret <= maxAllowed; fret++) {
           if (chordPcs.includes((stringPc + fret) % 12)) {
@@ -227,13 +240,129 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
       const pc = (tuningPcs[lowest] + fr) % 12;
       rootLowest = pc === rootPc;
     }
+    if (!rootLowest && played.length) {
+      const lowest = Math.min(...played);
+      const highest = Math.max(...played);
+      if (frets[lowest] === 0 && (lowest === lowest || lowest === highest)) {
+        const altPlayed = played.filter(i => i !== lowest);
+        if (altPlayed.length) {
+          const altUsed = altPlayed.map(idx => (tuningPcs[idx] + frets[idx]) % 12);
+          const hasAll = chordPcs.every(pc => altUsed.includes(pc));
+          if (hasAll) {
+            const altLowest = Math.min(...altPlayed);
+            const altLowestPc = (tuningPcs[altLowest] + frets[altLowest]) % 12;
+            if (altLowestPc === rootPc) rootLowest = true;
+          }
+        }
+      }
+    }
 
-    const fretSum = frets.reduce((s, fr) => s + (fr || 0), 0);
+    let inversionScore = 0;
+    if (played.length) {
+      const chordOrder = new Map(
+        chordPcs
+          .slice()
+          .sort((a, b) => ((a - rootPc + 12) % 12) - ((b - rootPc + 12) % 12))
+          .map((pc, idx) => [pc, idx])
+      );
+      let lastIdx = null;
+      const ordered = played.slice().sort((a, b) => a - b);
+      for (const idx of ordered) {
+        const fr = frets[idx];
+        if (fr == null) continue;
+        const pc = (tuningPcs[idx] + fr) % 12;
+        const orderIdx = chordOrder.get(pc);
+        if (orderIdx == null) continue;
+        if (lastIdx !== null && orderIdx < lastIdx) inversionScore += 1;
+        lastIdx = orderIdx;
+      }
+    }
 
-    return [baseFret, internalMutes * 100, mutes, fingers, rootLowest ? 0 : 1, fretSum];
+    const minFretValue = fretted.length ? Math.min(...fretted) : 0;
+    const maxFretValue = fretted.length ? Math.max(...fretted) : 0;
+    const fretSpan = fretted.length ? (maxFretValue - minFretValue) : 0;
+    const frettedIndices = frets.map((fr, i) => (fr != null && fr !== 0 ? i : null)).filter(i => i != null);
+    const stringSpan = frettedIndices.length ? (Math.max(...frettedIndices) - Math.min(...frettedIndices)) : 0;
+    const spanScore = fretSpan + stringSpan;
+
+    let leadingMuted = 0;
+    for (let i = 0; i < frets.length; i++) {
+      if (frets[i] == null) leadingMuted += 1;
+      else break;
+    }
+    let trailingMuted = 0;
+    for (let i = frets.length - 1; i >= 0; i--) {
+      if (frets[i] == null) trailingMuted += 1;
+      else break;
+    }
+    let endMuteDiscount = 0;
+    if (leadingMuted > 0) endMuteDiscount += 1.0;
+    if (trailingMuted > 0) endMuteDiscount += 0.5;
+    const bothEndsMutedPenalty = (frets[0] == null && frets[frets.length - 1] == null) ? 1 : 0;
+    const effectiveMutes = mutes - endMuteDiscount;
+    const muteCountPenalty = mutes >= 3 ? 1 : 0;
+    const effectiveFingers = fingers;
+
+    const tailScore = (effectiveFingers * 10)
+      + (rootLowest ? 0 : 12)
+      + inversionScore
+      + (baseFret * 10)
+      + (effectiveMutes * 41)
+      + spanScore
+      + minFretValue;
+
+    return [muteCountPenalty, bothEndsMutedPenalty, internalMutes * 100, tailScore];
   }
 
-  filtered2.sort((a, b) => {
+  const grouped = new Map();
+  for (const f of filtered2) {
+    const key = f.frets.map(fr => (fr == null ? 0 : fr)).join(",");
+    const scoreVal = score(f);
+    const existing = grouped.get(key);
+    if (!existing || scoreVal < existing.scoreVal) {
+      grouped.set(key, { scoreVal, best: f, variants: existing ? existing.variants.concat([f]) : [f] });
+    } else {
+      existing.variants.push(f);
+    }
+  }
+
+  const deduped = [];
+  for (const { best, variants } of grouped.values()) {
+    const greyMutes = new Set();
+    const greyOpens = new Set();
+    for (let i = 0; i < best.frets.length; i++) {
+      if (best.frets[i] == null) {
+        if (variants.some(v => v.frets[i] === 0)) {
+          greyMutes.add(i);
+        }
+      }
+      if (best.frets[i] === 0) {
+        const alt = best.frets.slice();
+        alt[i] = null;
+        const altPlayed = alt.map((fr, idx) => (fr == null ? null : idx)).filter(idx => idx != null);
+        if (altPlayed.length) {
+          const altLow = Math.min(...altPlayed);
+          const altHigh = Math.max(...altPlayed);
+          if (i === altLow || i === altHigh) {
+            const altUsed = altPlayed.map(idx => (tuningPcs[idx] + alt[idx]) % 12);
+            const hasAll = chordPcs.every(pc => altUsed.includes(pc));
+            if (hasAll) {
+              const altLowest = Math.min(...altPlayed);
+              const altLowestPc = (tuningPcs[altLowest] + alt[altLowest]) % 12;
+              if (altLowestPc === rootPc) {
+                greyOpens.add(i);
+              }
+            }
+          }
+        }
+      }
+    }
+    best.greyMutes = Array.from(greyMutes);
+    best.greyOpens = Array.from(greyOpens);
+    deduped.push(best);
+  }
+
+  deduped.sort((a, b) => {
     const sa = score(a), sb = score(b);
     for (let i = 0; i < sa.length; i++) {
       if (sa[i] !== sb[i]) return sa[i] - sb[i];
@@ -241,11 +370,13 @@ function generateFingerings(tuningPcs, chordPcs, rootPc, maxFret, maxResults) {
     return 0;
   });
 
-  return filtered2.slice(0, maxResults);
+  return deduped.slice(0, maxResults);
 }
 
 function drawPng(title, tuningNotes, fingering, rootPc) {
   const frets = fingering.frets;
+  const greyMutes = new Set(fingering.greyMutes || []);
+  const greyOpens = new Set(fingering.greyOpens || []);
   const baseFret = fingering.baseFret;
   const strings = frets.length;
 
@@ -322,7 +453,7 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
   frets.forEach((fret, i) => {
     const x = marginX + i * stringGap;
     if (fret == null) {
-      ctx.strokeStyle = "#111";
+      ctx.strokeStyle = greyMutes.has(i) ? "#999" : "#111";
       ctx.lineWidth = 1.5;
       const size = 4;
       const y = marginTop + titlePadding - 10;
@@ -336,7 +467,7 @@ function drawPng(title, tuningNotes, fingering, rootPc) {
       ctx.stroke();
     } else if (fret === 0) {
       const notePc = (NOTE_TO_PC[tuningNotes[i]] + fret) % 12;
-      ctx.strokeStyle = notePc === rootPc ? "#d62828" : "#111";
+      ctx.strokeStyle = greyOpens.has(i) ? "#999" : (notePc === rootPc ? "#d62828" : "#111");
       ctx.lineWidth = 1.5;
       const y = marginTop + titlePadding - 10;
       const radius = 4;
